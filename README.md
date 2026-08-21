@@ -81,9 +81,11 @@ compatibility; Grokked's current BYO-key design requires no environment values.
 ## Vercel
 
 The app is a Vite project with output in `dist`; `vercel.json` rewrites
-non-API routes to `index.html` for SPA routing. The repository contains the
-existing GitHub Actions Vercel deployment workflow. Keep deployment on the
-Vercel Hobby plan and do not add paid Vercel products for this personal tool.
+non-API routes to `index.html` for SPA routing. The Vercel project `grokked`
+uses Vercel's native GitHub integration: pushes to `main` create production
+deployments. No GitHub Actions Vercel token workflow is used. Keep deployment
+on the Vercel Hobby plan and do not add paid Vercel products for this personal
+tool.
 
 Before calling a deployment complete, verify both:
 

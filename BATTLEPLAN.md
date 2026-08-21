@@ -377,6 +377,8 @@ https://grokked-rose.vercel.app/
 Vercel project policy:
 
 - Hobby plan
+- use Vercel's native GitHub integration for `main` production deployments;
+  do not keep a token-based GitHub Actions Vercel deployment workflow
 - keep the project compatible with Hobby limits
 - do not introduce paid Vercel services unless clearly necessary
 - root directory: repository root
