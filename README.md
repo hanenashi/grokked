@@ -1,81 +1,108 @@
-# Grok Image & Video
+# Grokked
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FDE0CH%2Fgrok-frontend)
+Grokked is a small, personal, pay-as-you-go frontend for the xAI Imagine API.
+Bring your own xAI API key, choose the model, resolution, and duration, see a
+local estimate before generating, then make images or short videos without a
+Grok subscription.
 
-A small web app to generate and edit images and videos using the [xAI (Grok) API](https://x.ai/). Create images from text, edit images with a prompt, or turn an image into a short video.
+It is deliberately a frontend, not a product platform: no accounts, database,
+server-side history, subscriptions, or server-side API key configuration.
 
-## Features
+## Status
 
-- **Text to Image** — Enter a text prompt; get an image generated from your description.
-- **Image to Image** — Upload an image and a text prompt; get a new image edited to match the prompt.
-- **Image to Video** — Upload an image and a prompt, choose duration (1–15 seconds); get a video.
-- **Login** — Your xAI API key is stored in a cookie in your browser. xAI asks the browser to block direct requests (CORS), so the key is sent to the app’s proxy (Vercel or the dev server), which forwards it to xAI; the proxy does not log or store your key. No account on this app; just your API key.
+Grokked is based on the upstream project `DE0CH/grok-frontend`, imported at
+commit [`35e4f3edc96ff3b38640854961eee4a34e7f5d9c`](https://github.com/DE0CH/grok-frontend/commit/35e4f3edc96ff3b38640854961eee4a34e7f5d9c).
+Upstream remains MIT licensed; see [LICENSE](LICENSE).
 
-## Prerequisites
+The intended Vercel address is <https://grokked-rose.vercel.app/>. As of the
+initial audit on 2026-08-22 it returned Vercel `404`, so do not treat it as a
+working deployment until a successful GitHub/Vercel deployment has been
+verified.
 
-- [Node.js](https://nodejs.org/) (developed and tested with v24)
-- An [xAI API key](https://console.x.ai/) (the API is paid; see xAI for pricing).
+## Use it
 
-## Setup and run
+1. Create an API key in the [xAI Console](https://console.x.ai/).
+2. Open Grokked and enter the key.
+3. Leave **Remember API key on this device** unchecked for the default
+   in-memory session. Check it only if you accept storing the key in this
+   browser's local storage.
+4. Select a mode, model, resolution, duration, and prompt. Review the estimate
+   beside **Generate video** before submitting.
+
+The estimate is a convenience, not a bill. xAI's actual response and billing
+are authoritative.
+
+## Security model
+
+- By default API keys exist only in JavaScript memory for the current session.
+  A reload signs the user out. Optional persistence is explicit and local to
+  the browser.
+- Grokked never puts a BYO key in a Vercel environment variable and does not
+  log authorization headers.
+- The `/api/proxy` function accepts only the image/video endpoints Grokked
+  uses, their required HTTP methods, and known xAI media origins. It is not an
+  arbitrary URL or header forwarding proxy.
+- API requests go through the proxy because the browser cannot reliably call
+  xAI's API cross-origin. Generated media loads directly from xAI by default,
+  avoiding Vercel bandwidth; Grokked falls back to the restricted media proxy
+  only when browser playback fails.
+- Error details are redacted and capped before display.
+
+## Current xAI models and estimates
+
+Pricing below was checked against the [xAI pricing page](https://docs.x.ai/developers/pricing)
+on 2026-08-22. It is isolated in `src/lib/imagine.ts`.
+
+| Model | 480p | 720p | 1080p |
+| --- | ---: | ---: | ---: |
+| `grok-imagine-video-1.5` | $0.08/s | $0.14/s | $0.25/s |
+| `grok-imagine-video` | $0.05/s | $0.07/s | — |
+
+An image-to-video estimate includes the documented image-input cost for the
+selected model. Text/image generation uses `grok-imagine-image-2.0`.
+
+## Local development
 
 ```bash
-# Install dependencies
 npm install
-
-# Run the app locally
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173). You’ll be asked to log in with your xAI API key.
+Useful checks:
 
-### Other commands
+```bash
+npm run lint
+npm run build
+```
 
-- `npm run build` — Build for production (output in `dist/`).
-- `npm run preview` — Serve the production build locally.
-## How to use
+Never commit a real API key. `.env.example` is only a placeholder for upstream
+compatibility; Grokked's current BYO-key design requires no environment values.
 
-1. **Log in**  
-   Go to the app, enter your xAI API key on the login page, and submit. The key is stored in a cookie so you stay logged in until you log out or clear it.
+## Vercel
 
-2. **Text to Image**  
-   - Open **Text to Image** from the nav.
-   - Enter a prompt describing the image you want.
-   - Submit. The generated image appears at the top; you can download it if needed.
+The app is a Vite project with output in `dist`; `vercel.json` rewrites
+non-API routes to `index.html` for SPA routing. The repository contains the
+existing GitHub Actions Vercel deployment workflow. Keep deployment on the
+Vercel Hobby plan and do not add paid Vercel products for this personal tool.
 
-3. **Image to Image**  
-   - Open the **Image to Image** page (home).
-   - Upload an image (drag-and-drop or click to choose).
-   - Enter a prompt describing how you want the image edited.
-   - Submit. The result image appears at the top; you can download it if needed.
-
-4. **Image to Video**  
-   - Open **Image to Video** from the nav.
-   - Upload an image and enter a prompt.
-   - Use the duration slider (1–15 seconds).
-   - Submit. When the video is ready, it appears at the top and can be played or downloaded.
-
-5. **Log out**  
-   Use **Log out** in the nav to clear the stored API key and return to the login page.
-
-## Tech stack
-
-- [React](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) + [Vite](https://vite.dev/)
-- [React Router](https://reactrouter.com/)
-- [xAI API](https://docs.x.ai/) for image and video generation (no SDK); xAI asks the browser to block direct requests (CORS), so requests go via the app’s proxy, which forwards your API key to xAI and does not log or store it
-
-## Deploy (e.g. Vercel)
-
-**[Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FDE0CH%2Fgrok-frontend)** — click the button at the top to clone and deploy this repo in one step.
-
-The app is a single-page app. For Vercel, `vercel.json` rewrites all routes to `index.html`. To deploy from the CLI:
+Before calling a deployment complete, verify both:
 
 ```bash
 npm run build
-npx vercel
+curl -I https://grokked-rose.vercel.app/
 ```
 
-(or connect the repo to Vercel for automatic deploys). The API key is entered in the browser and stored in a cookie; xAI asks the browser to block direct requests (CORS), so the key is sent to the proxy, which forwards it to xAI and does not log or store it. No server-side secrets are required for basic use.
+Then manually test a cheap image or short video with an API key you control.
 
-## License
+## Updating from upstream
 
-MIT — see [LICENSE](LICENSE).
+The local remote named `upstream` points to
+`https://github.com/DE0CH/grok-frontend.git`.
+
+```bash
+git fetch upstream
+git log --oneline HEAD..upstream/main
+```
+
+Review and import upstream changes intentionally; do not overwrite Grokked's
+security, pricing, or API compatibility changes blindly.

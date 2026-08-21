@@ -564,3 +564,33 @@ Before writing feature code, produce a short audit stating:
 ```
 
 Only then start Grokked-specific modifications.
+
+---
+
+## Initial audit — 2026-08-22
+
+1. **Upstream imported:** `DE0CH/grok-frontend` commit
+   `35e4f3edc96ff3b38640854961eee4a34e7f5d9c`, imported untouched in Grokked
+   commit `c51caa1`.
+2. **Current xAI API:** Images use `/v1/images/generations` and
+   `/v1/images/edits`; current `grok-imagine-image-2.0` supports text/image
+   input. Videos use asynchronous `POST /v1/videos/generations` followed by
+   `GET /v1/videos/{request_id}`. `grok-imagine-video-1.5` supports text and
+   image-to-video at 480p, 720p, and 1080p. `grok-imagine-video` remains
+   available at 480p and 720p.
+3. **Estimate pricing:** Video 1.5 costs $0.08/s (480p), $0.14/s (720p), or
+   $0.25/s (1080p); Imagine Video costs $0.05/s (480p) or $0.07/s (720p).
+   Image-to-video includes its documented image-input cost. Config lives in
+   `src/lib/imagine.ts`; xAI billing remains authoritative.
+4. **Generated media:** xAI returns ephemeral `vidgen.x.ai` URLs, while xAI
+   also supports `files-cdn.x.ai` public URLs when requested. Grokked loads
+   media directly first and uses its strict, streaming media fallback only on
+   playback failure. No live generated asset was used for this audit.
+5. **Key storage:** Default is in-memory only. An unchecked, explicit
+   “Remember API key on this device” option stores it in browser local storage.
+6. **Upstream baseline bugs:** `npm run build` succeeded. `npm run lint` failed
+   because helper `useProxy` violated React hook naming rules, and the video
+   loop had an unused eslint suppression. The Grokked API rewrite resolves both.
+7. **Vercel production:** `https://grokked-rose.vercel.app/` returned Vercel
+   `404` on 2026-08-22. The domain exists but a working production deployment
+   still needs verification after GitHub/Vercel deployment runs.
