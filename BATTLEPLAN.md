@@ -15,6 +15,9 @@ Upstream:
 Target:
 - https://github.com/hanenashi/grokked
 
+Production deployment already connected:
+- https://grokked-rose.vercel.app/
+
 ---
 
 ## What upstream already gives us
@@ -353,7 +356,13 @@ Provide `Clear history`.
 
 Target Vercel Hobby for personal use.
 
-Expected deployment:
+Current production deployment:
+
+```text
+https://grokked-rose.vercel.app/
+```
+
+Expected deployment flow:
 
 ```text
 GitHub hanenashi/grokked
@@ -361,7 +370,21 @@ GitHub hanenashi/grokked
 Vercel project
         ↓
 auto-deploy main
+        ↓
+https://grokked-rose.vercel.app/
 ```
+
+Vercel project policy:
+
+- Hobby plan
+- keep the project compatible with Hobby limits
+- do not introduce paid Vercel services unless clearly necessary
+- root directory: repository root
+- framework: Vite / auto-detect
+- install: default `npm install`
+- build: `npm run build`
+- output: `dist`
+- no Vercel environment variables are required for the current BYO xAI-key design
 
 Requirements:
 
@@ -372,7 +395,12 @@ Requirements:
 - SPA routing still works on direct URLs
 - `/api/proxy` works in Vercel production
 
-After first production deploy, test:
+After each meaningful deployment milestone, verify both:
+
+1. local production build
+2. the live production app at `https://grokked-rose.vercel.app/` where practical
+
+After first working production deploy, test:
 
 1. enter API key
 2. text → image
@@ -383,6 +411,38 @@ After first production deploy, test:
 7. reload browser and verify intended key persistence behavior
 
 Start with cheap generation settings while debugging. Burning API credit to discover a CSS bug is an unusually stupid benchmarking method.
+
+## Vercel Coding Agent Plugin
+
+Codex CLI should have Vercel's official coding-agent plugin installed before doing deployment/configuration work.
+
+Preferred Codex route:
+
+```text
+/plugins
+```
+
+Then select/install **Vercel**.
+
+Generic installer advertised by Vercel:
+
+```bash
+npx plugins add vercel/vercel-plugin
+```
+
+Codex instructions after installation:
+
+```text
+Vercel production deployment already exists at:
+https://grokked-rose.vercel.app/
+
+Use the installed Vercel plugin when making deployment/configuration decisions.
+Keep the project compatible with Vercel Hobby.
+Do not introduce paid Vercel services unless clearly necessary.
+After each meaningful milestone, verify npm build locally and verify the deployed production app where practical.
+```
+
+Important distinction: the Vercel coding-agent plugin provides current Vercel platform guidance. Do not assume it automatically grants account/project access. If actual deployment logs, project metadata, or account actions are needed, use explicit Vercel account tooling separately.
 
 ---
 
@@ -396,6 +456,7 @@ Rewrite upstream README into a Grokked README containing:
 - xAI API key setup
 - local development
 - Vercel deployment
+- production URL
 - security explanation
 - where the API key lives
 - what crosses the Vercel proxy
@@ -414,6 +475,7 @@ Grokked v0.1 is done when all of these are true:
 - [ ] `npm install` succeeds
 - [ ] production build succeeds
 - [ ] Vercel deployment succeeds
+- [ ] `https://grokked-rose.vercel.app/` serves the current production build
 - [ ] API key is handled safely enough for personal use
 - [ ] Text → Image works
 - [ ] Image → Image works
@@ -457,13 +519,16 @@ When Codex starts implementation:
 1. Read this file first.
 2. Inspect upstream before rewriting anything.
 3. Verify current xAI docs before changing API schemas/model names/prices.
-4. Make small reviewable commits.
-5. Run build/lint after meaningful changes.
-6. Test the proxy's allowlist after modifying it.
-7. Never expose or commit an API key.
-8. Prefer simple TypeScript over new dependencies.
-9. Preserve working upstream behavior while adding features incrementally.
-10. Keep Vercel Hobby compatibility.
+4. Use the installed Vercel plugin for Vercel-specific decisions.
+5. Remember production is already connected at `https://grokked-rose.vercel.app/`.
+6. Make small reviewable commits.
+7. Run build/lint after meaningful changes.
+8. Test the proxy's allowlist after modifying it.
+9. Never expose or commit an API key.
+10. Prefer simple TypeScript over new dependencies.
+11. Preserve working upstream behavior while adding features incrementally.
+12. Keep Vercel Hobby compatibility.
+13. Verify live deployment after meaningful milestones where practical.
 
 ## Suggested implementation order
 
@@ -478,7 +543,7 @@ G. Add cost estimate + warning threshold
 H. Add cancel/timeout/double-submit protection
 I. Test direct CDN delivery vs Vercel media proxy
 J. Mobile polish
-K. Deploy to Vercel
+K. Verify Vercel production deployment
 L. Final README/security notes
 ```
 
@@ -495,6 +560,7 @@ Before writing feature code, produce a short audit stating:
 4. Whether generated media must pass through Vercel
 5. Exact planned API-key storage behavior
 6. Any upstream bugs found during baseline testing
+7. Whether the live Vercel deployment is correctly connected and building
 ```
 
 Only then start Grokked-specific modifications.
