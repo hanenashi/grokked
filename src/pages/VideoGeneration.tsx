@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ImageUpload from "../components/ImageUpload";
 import { estimateVideoCost, formatUsd, getVideoModel, VIDEO_MODELS, type VideoModelId, type VideoResolution } from "../lib/imagine";
 import { generateVideo, getMediaFallbackUrl } from "../lib/grokApi";
+import { addActivity, type ActivityStatus } from "../lib/activity";
 
 type Mode = "text" | "image";
 type GenerationStatus = "ready" | "submitting" | "queued" | "generating" | "done" | "cancelled" | "timed-out" | "failed";
@@ -97,7 +98,7 @@ export default function VideoGeneration({ mode }: { mode: Mode }) {
     setError(null);
     setResultUrl(null);
     try {
-      const url = await generateVideo(prompt, {
+      const result = await generateVideo(prompt, {
         model,
         resolution,
         duration,
@@ -105,13 +106,14 @@ export default function VideoGeneration({ mode }: { mode: Mode }) {
         signal: controller.signal,
         onStatus: (next) => setStatus(next),
       });
-      setResultUrl(url);
+      setResultUrl(result.url);
       setStatus("done");
+      addActivity({ kind: isImageMode ? "Image to video" : "Text to video", status: "completed", model, settings: `${resolution} · ${duration}s`, costInUsdTicks: result.costInUsdTicks });
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Request failed.";
-      if (message.includes("cancelled")) setStatus("cancelled");
-      else if (message.startsWith("Timed out")) setStatus("timed-out");
-      else setStatus("failed");
+      const nextStatus: ActivityStatus = message.includes("cancelled") ? "cancelled" : message.startsWith("Timed out") ? "timed-out" : "failed";
+      setStatus(nextStatus);
+      addActivity({ kind: isImageMode ? "Image to video" : "Text to video", status: nextStatus, model, settings: `${resolution} · ${duration}s` });
       setError(message);
     } finally {
       controllerRef.current = null;

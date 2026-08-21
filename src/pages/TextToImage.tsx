@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { textToImage } from "../lib/grokApi";
 import { getDownloadFilename } from "../lib/downloadUtils";
+import { addActivity } from "../lib/activity";
 
 export default function TextToImage() {
   const [prompt, setPrompt] = useState("");
@@ -17,9 +18,11 @@ export default function TextToImage() {
     setError(null);
     setResultUrl(null);
     try {
-      const url = await textToImage(prompt.trim());
-      setResultUrl(url);
+      const result = await textToImage(prompt.trim());
+      setResultUrl(result.url);
+      addActivity({ kind: "Text to image", status: "completed", model: "grok-imagine-image-2.0", settings: "Image generation", costInUsdTicks: result.costInUsdTicks });
     } catch (err) {
+      addActivity({ kind: "Text to image", status: "failed", model: "grok-imagine-image-2.0", settings: "Image generation" });
       setError(err instanceof Error ? err.message : "Request failed");
     } finally {
       setLoading(false);

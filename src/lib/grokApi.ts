@@ -71,7 +71,9 @@ async function xaiRequest(path: string, init: RequestInit, signal?: AbortSignal)
   return response;
 }
 
-type ImageGenerationResponse = { data?: Array<{ b64_json?: string; url?: string; mime_type?: string }> };
+type Usage = { cost_in_usd_ticks?: number };
+export type GenerationResult = { url: string; costInUsdTicks?: number };
+type ImageGenerationResponse = { data?: Array<{ b64_json?: string; url?: string; mime_type?: string }>; usage?: Usage };
 
 function imageResponseUrl(payload: ImageGenerationResponse): string {
   const image = payload.data?.[0];
@@ -81,19 +83,25 @@ function imageResponseUrl(payload: ImageGenerationResponse): string {
   return `data:${mime};base64,${image.b64_json}`;
 }
 
-export async function textToImage(prompt: string): Promise<string> {
+function costInUsdTicks(usage: Usage | undefined): number | undefined {
+  const value = usage?.cost_in_usd_ticks;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+export async function textToImage(prompt: string): Promise<GenerationResult> {
   try {
     const response = await xaiRequest("/images/generations", {
       method: "POST",
       body: JSON.stringify({ model: IMAGE_MODEL, prompt: prompt.trim(), response_format: "b64_json" }),
     });
-    return imageResponseUrl((await response.json()) as ImageGenerationResponse);
+    const payload = (await response.json()) as ImageGenerationResponse;
+    return { url: imageResponseUrl(payload), costInUsdTicks: costInUsdTicks(payload.usage) };
   } catch (error) {
     throw presentError(error);
   }
 }
 
-export async function imageEdit(prompt: string, imageDataUri: string): Promise<string> {
+export async function imageEdit(prompt: string, imageDataUri: string): Promise<GenerationResult> {
   try {
     const response = await xaiRequest("/images/edits", {
       method: "POST",
@@ -104,7 +112,8 @@ export async function imageEdit(prompt: string, imageDataUri: string): Promise<s
         response_format: "b64_json",
       }),
     });
-    return imageResponseUrl((await response.json()) as ImageGenerationResponse);
+    const payload = (await response.json()) as ImageGenerationResponse;
+    return { url: imageResponseUrl(payload), costInUsdTicks: costInUsdTicks(payload.usage) };
   } catch (error) {
     throw presentError(error);
   }
@@ -116,6 +125,7 @@ type VideoResponse = {
   status?: string;
   video?: { url?: string };
   error?: { message?: string } | string;
+  usage?: Usage;
 };
 
 export type VideoGenerationOptions = {
@@ -137,7 +147,7 @@ function waitForPoll(signal?: AbortSignal): Promise<void> {
   });
 }
 
-export async function generateVideo(prompt: string, options: VideoGenerationOptions): Promise<string> {
+export async function generateVideo(prompt: string, options: VideoGenerationOptions): Promise<GenerationResult> {
   const { imageDataUri, signal, onStatus } = options;
   try {
     onStatus?.("submitting");
@@ -164,7 +174,7 @@ export async function generateVideo(prompt: string, options: VideoGenerationOpti
       const result = (await response.json()) as VideoResponse;
       if (result.status === "done" && result.video?.url) {
         onStatus?.("done");
-        return result.video.url;
+        return { url: result.video.url, costInUsdTicks: costInUsdTicks(result.usage) };
       }
       if (result.status === "failed" || result.status === "expired" || result.error) {
         const message = typeof result.error === "string" ? result.error : result.error?.message;

@@ -6,6 +6,7 @@ import Login from "./pages/Login";
 import ImageToImage from "./pages/ImageToImage";
 import TextToImage from "./pages/TextToImage";
 import VideoGeneration from "./pages/VideoGeneration";
+import Activity from "./pages/Activity";
 import NotFound from "./pages/NotFound";
 import "./App.css";
 
@@ -16,6 +17,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/text-to-image": "Text to image",
   "/text-to-video": "Text to video",
   "/image-to-video": "Image to video",
+  "/activity": "Activity",
 };
 
 function usePageTitle() {
@@ -35,6 +37,7 @@ function ProtectedLayout({ authenticated, onLogout, children }: { authenticated:
         <NavLink to="/image-to-video">Image to video</NavLink>
         <NavLink to="/text-to-image">Text to image</NavLink>
         <NavLink to="/">Image to image</NavLink>
+        <NavLink to="/activity">Activity</NavLink>
         <button type="button" className="nav-logout" onClick={onLogout}>Sign out</button>
       </nav>
       <main>{children}</main>
@@ -74,6 +77,7 @@ export default function App() {
           <Route path="/text-to-image" element={protectedPage(<TextToImage />)} />
           <Route path="/text-to-video" element={protectedPage(<VideoGeneration mode="text" />)} />
           <Route path="/image-to-video" element={protectedPage(<VideoGeneration mode="image" />)} />
+          <Route path="/activity" element={protectedPage(<Activity />)} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </div>

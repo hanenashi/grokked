@@ -6,7 +6,8 @@ local estimate before generating, then make images or short videos without a
 Grok subscription.
 
 It is deliberately a frontend, not a product platform: no accounts, database,
-server-side history, subscriptions, or server-side API key configuration.
+subscriptions, or server-side API key configuration. The optional Activity view
+stores up to 50 of this browser's Grokked generation metadata locally.
 
 ## Status
 
@@ -47,6 +48,9 @@ are authoritative.
   avoiding Vercel bandwidth; Grokked falls back to the restricted media proxy
   only when browser playback fails.
 - Error details are redacted and capped before display.
+- Activity stores only generation type, settings, status, time, and the actual
+  xAI cost returned by the request. It never stores prompts, source images,
+  media URLs, or API keys, and it cannot show work made outside Grokked.
 
 ## Current xAI models and estimates
 

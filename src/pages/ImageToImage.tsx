@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { imageEdit } from "../lib/grokApi";
 import { getDownloadFilename } from "../lib/downloadUtils";
 import ImageUpload from "../components/ImageUpload";
+import { addActivity } from "../lib/activity";
 
 export default function ImageToImage() {
   const [preview, setPreview] = useState<string | null>(null);
@@ -31,9 +32,11 @@ export default function ImageToImage() {
     setError(null);
     setResultUrl(null);
     try {
-      const url = await imageEdit(prompt.trim(), preview);
-      setResultUrl(url);
+      const result = await imageEdit(prompt.trim(), preview);
+      setResultUrl(result.url);
+      addActivity({ kind: "Image to image", status: "completed", model: "grok-imagine-image-2.0", settings: "Image edit", costInUsdTicks: result.costInUsdTicks });
     } catch (err) {
+      addActivity({ kind: "Image to image", status: "failed", model: "grok-imagine-image-2.0", settings: "Image edit" });
       setError(err instanceof Error ? err.message : "Request failed");
     } finally {
       setLoading(false);
