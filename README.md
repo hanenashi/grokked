@@ -1,4 +1,22 @@
-# Grokked
+# Grokked native (Compose prototype)
+
+This branch is the early native Android port. The existing browser/Vercel app
+is preserved intact on the `browser` branch (and remains on `main`).
+
+## Android quick start
+
+The first Compose build supports direct text-to-image requests with a BYO xAI
+key, shows the generated image and actual billed cost, and keeps an in-memory
+activity list for the current app session. It is intentionally a small,
+unpolished prototype: key persistence, video, image upload, and downloadable
+media come next.
+
+Pushing to `native` triggers **Android debug APK** on GitHub Actions. Open the
+run and download the `grokked-native-debug-apk` artifact.
+
+---
+
+# Browser app notes
 
 Grokked is a small, personal, pay-as-you-go frontend for the xAI Imagine API.
 Bring your own xAI API key, choose the model, resolution, and duration, see a

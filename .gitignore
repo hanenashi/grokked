@@ -24,3 +24,10 @@ dist-ssr
 *.sw?
 .env
 .vercel
+
+# Android / Gradle
+.gradle/
+build/
+app/build/
+local.properties
+*.apk
