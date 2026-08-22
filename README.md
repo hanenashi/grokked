@@ -5,14 +5,21 @@ is preserved intact on the `browser` branch (and remains on `main`).
 
 ## Android quick start
 
-The first Compose build supports direct text-to-image requests with a BYO xAI
-key, shows the generated image and actual billed cost, and keeps an in-memory
-activity list for the current app session. It is intentionally a small,
-unpolished prototype: key persistence, video, image upload, and downloadable
-media come next.
+The Compose build supports text/image-to-image and text/image-to-video, direct
+xAI requests, local Activity history, video playback, and the exact billed
+cost xAI returns. Opting in to remember the key encrypts it with Android
+Keystore; prompts, source images, and media URLs are never stored.
 
-Pushing to `native` triggers **Android debug APK** on GitHub Actions. Open the
-run and download the `grokked-native-debug-apk` artifact.
+When Beechan and Teneichan are on the same network, build and install directly:
+
+```bash
+ANDROID_HOME="$HOME/.local/share/android-sdk" \
+  $HOME/.local/share/gradle/gradle-8.10/bin/gradle :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+This installs alongside the GitHub build as **Grokked Dev**, keeping the
+existing app and its data untouched during home iteration.
 
 ---
 
