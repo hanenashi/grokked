@@ -74,7 +74,6 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 
 private const val IMAGE_MODEL = "grok-imagine-image-2.0"
-private const val VIDEO_MODEL = "grok-imagine-video-1.5"
 private const val XAI_API = "https://api.x.ai/v1"
 private const val TICKS_PER_USD = 10_000_000_000.0
 private const val MAX_ACTIVITY = 50
@@ -84,6 +83,29 @@ private enum class CreationMode(val label: String, val needsImage: Boolean, val 
     IMAGE_TO_IMAGE("Image to image", true, false),
     TEXT_TO_VIDEO("Text to video", false, true),
     IMAGE_TO_VIDEO("Image to video", true, true),
+}
+
+private enum class VideoModel(
+    val id: String,
+    val label: String,
+    val resolutions: List<String>,
+    val costPerSecond: Map<String, Double>,
+    val imageInputCost: Double,
+) {
+    IMAGINE_VIDEO(
+        id = "grok-imagine-video",
+        label = "Imagine Video",
+        resolutions = listOf("480p", "720p"),
+        costPerSecond = mapOf("480p" to 0.05, "720p" to 0.07),
+        imageInputCost = 0.002,
+    ),
+    IMAGINE_VIDEO_15(
+        id = "grok-imagine-video-1.5",
+        label = "Imagine Video 1.5",
+        resolutions = listOf("480p", "720p", "1080p"),
+        costPerSecond = mapOf("480p" to 0.08, "720p" to 0.14, "1080p" to 0.25),
+        imageInputCost = 0.01,
+    ),
 }
 
 private data class SourceImage(val dataUri: String, val bitmap: Bitmap)
@@ -120,12 +142,16 @@ private fun GrokkedApp(context: Context) {
     var apiKey by remember { mutableStateOf(store.loadApiKey()) }
     var rememberKey by remember { mutableStateOf(apiKey.isNotBlank()) }
     var mode by remember { mutableStateOf(CreationMode.TEXT_TO_IMAGE) }
+    var videoModel by remember { mutableStateOf(VideoModel.IMAGINE_VIDEO) }
+    var resolution by remember { mutableStateOf("480p") }
+    var duration by remember { mutableStateOf(5) }
     var prompt by remember { mutableStateOf("") }
     var sourceImage by remember { mutableStateOf<SourceImage?>(null) }
     var result by remember { mutableStateOf<GenerationResult?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var generating by remember { mutableStateOf(false) }
     var activitySelected by remember { mutableStateOf(false) }
+    var settingsSelected by remember { mutableStateOf(false) }
     val activity = remember { mutableStateListOf<ActivityItem>().apply { addAll(store.loadActivity()) } }
     val scope = rememberCoroutineScope()
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -136,13 +162,14 @@ private fun GrokkedApp(context: Context) {
     LaunchedEffect(apiKey, rememberKey) {
         if (rememberKey && apiKey.isNotBlank()) store.saveApiKey(apiKey) else if (!rememberKey) store.clearApiKey()
     }
+    LaunchedEffect(videoModel) { if (resolution !in videoModel.resolutions) resolution = videoModel.resolutions.first() }
 
     fun record(generated: GenerationResult) {
         activity.add(0, ActivityItem(
             createdAt = System.currentTimeMillis(),
             mode = mode.label,
-            model = if (mode.isVideo) VIDEO_MODEL else IMAGE_MODEL,
-            settings = if (mode.isVideo) "480p · 5 seconds" else if (mode.needsImage) "Source image edit" else "Image generation",
+            model = if (mode.isVideo) videoModel.id else IMAGE_MODEL,
+            settings = if (mode.isVideo) "$resolution · $duration seconds" else if (mode.needsImage) "Source image edit" else "Image generation",
             costInUsdTicks = generated.costInUsdTicks,
         ))
         while (activity.size > MAX_ACTIVITY) activity.removeLast()
@@ -153,27 +180,33 @@ private fun GrokkedApp(context: Context) {
         topBar = {
             TopAppBar(
                 title = { Text("Grokked") },
-                actions = { if (apiKey.isNotBlank()) TextButton(onClick = { apiKey = ""; rememberKey = false }) { Text("Forget key") } },
+                actions = {},
             )
         },
         bottomBar = {
             NavigationBar {
-                NavigationBarItem(selected = !activitySelected, onClick = { activitySelected = false }, icon = {}, label = { Text("Create") })
-                NavigationBarItem(selected = activitySelected, onClick = { activitySelected = true }, icon = {}, label = { Text("Activity") })
+                NavigationBarItem(selected = !activitySelected && !settingsSelected, onClick = { activitySelected = false; settingsSelected = false }, icon = {}, label = { Text("Create") })
+                NavigationBarItem(selected = activitySelected, onClick = { activitySelected = true; settingsSelected = false }, icon = {}, label = { Text("Activity") })
+                NavigationBarItem(selected = settingsSelected, onClick = { settingsSelected = true; activitySelected = false }, icon = {}, label = { Text("Settings") })
             }
         },
     ) { padding ->
-        if (activitySelected) {
+        if (settingsSelected) {
+            SettingsScreen(padding, apiKey, { apiKey = it }, rememberKey, { rememberKey = it }, { apiKey = ""; rememberKey = false })
+        } else if (activitySelected) {
             ActivityScreen(padding, activity) { activity.clear(); store.saveActivity(activity) }
         } else {
             GenerateScreen(
                 padding = padding,
-                apiKey = apiKey,
-                onApiKeyChange = { apiKey = it },
-                rememberKey = rememberKey,
-                onRememberKeyChange = { rememberKey = it },
+                keyAvailable = apiKey.isNotBlank(),
                 mode = mode,
                 onModeChange = { mode = it; result = null; error = null },
+                videoModel = videoModel,
+                onVideoModelChange = { videoModel = it },
+                resolution = resolution,
+                onResolutionChange = { resolution = it },
+                duration = duration,
+                onDurationChange = { duration = it },
                 prompt = prompt,
                 onPromptChange = { prompt = it },
                 sourceImage = sourceImage,
@@ -188,7 +221,7 @@ private fun GrokkedApp(context: Context) {
                     error = null
                     result = null
                     scope.launch {
-                        runCatching { create(apiKey.trim(), mode, prompt.trim(), sourceImage?.dataUri) }
+                        runCatching { create(apiKey.trim(), mode, prompt.trim(), sourceImage?.dataUri, videoModel, resolution, duration) }
                             .onSuccess { generated -> result = generated; record(generated) }
                             .onFailure { error = it.message ?: "Generation failed." }
                         generating = false
@@ -202,12 +235,15 @@ private fun GrokkedApp(context: Context) {
 @Composable
 private fun GenerateScreen(
     padding: PaddingValues,
-    apiKey: String,
-    onApiKeyChange: (String) -> Unit,
-    rememberKey: Boolean,
-    onRememberKeyChange: (Boolean) -> Unit,
+    keyAvailable: Boolean,
     mode: CreationMode,
     onModeChange: (CreationMode) -> Unit,
+    videoModel: VideoModel,
+    onVideoModelChange: (VideoModel) -> Unit,
+    resolution: String,
+    onResolutionChange: (String) -> Unit,
+    duration: Int,
+    onDurationChange: (Int) -> Unit,
     prompt: String,
     onPromptChange: (String) -> Unit,
     sourceImage: SourceImage?,
@@ -224,12 +260,9 @@ private fun GenerateScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item { Text("Create", style = MaterialTheme.typography.headlineMedium) }
-        item { Text("Your API key is encrypted with Android Keystore when saved on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        item {
-            OutlinedTextField(value = apiKey, onValueChange = onApiKeyChange, label = { Text("xAI API key") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-        }
-        item { Row { Checkbox(checked = rememberKey, onCheckedChange = onRememberKeyChange); Text("Remember encrypted key on this device", modifier = Modifier.padding(top = 12.dp)) } }
+        if (!keyAvailable) item { Text("Add your xAI API key in Settings to generate.", color = MaterialTheme.colorScheme.error) }
         item { ModePicker(mode, onModeChange) }
+        if (mode.isVideo) item { VideoSettings(mode, videoModel, onVideoModelChange, resolution, onResolutionChange, duration, onDurationChange) }
         if (mode.needsImage) item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (sourceImage == null) OutlinedButton(onClick = onChooseImage, modifier = Modifier.fillMaxWidth()) { Text("Choose source image") }
@@ -243,7 +276,7 @@ private fun GenerateScreen(
             OutlinedTextField(value = prompt, onValueChange = onPromptChange, label = { Text(if (mode.isVideo) "Describe the video" else "Describe the image") }, minLines = 4, modifier = Modifier.fillMaxWidth())
         }
         item {
-            Button(onClick = onGenerate, enabled = apiKey.isNotBlank() && prompt.isNotBlank() && (!mode.needsImage || sourceImage != null) && !generating, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = onGenerate, enabled = keyAvailable && prompt.isNotBlank() && (!mode.needsImage || sourceImage != null) && !generating, modifier = Modifier.fillMaxWidth()) {
                 Text(if (generating) "Generating…" else "Generate ${if (mode.isVideo) "video" else "image"}")
             }
         }
@@ -263,6 +296,47 @@ private fun ModePicker(selected: CreationMode, onSelect: (CreationMode) -> Unit)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ModeButton(CreationMode.TEXT_TO_VIDEO, selected, onSelect)
             ModeButton(CreationMode.IMAGE_TO_VIDEO, selected, onSelect)
+        }
+    }
+}
+
+@Composable
+private fun VideoSettings(
+    mode: CreationMode,
+    selectedModel: VideoModel,
+    onModelChange: (VideoModel) -> Unit,
+    resolution: String,
+    onResolutionChange: (String) -> Unit,
+    duration: Int,
+    onDurationChange: (Int) -> Unit,
+) {
+    val estimate = (selectedModel.costPerSecond.getValue(resolution) * duration) + if (mode.needsImage) selectedModel.imageInputCost else 0.0
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Video settings", style = MaterialTheme.typography.titleMedium)
+            Text("Model", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                VideoModel.entries.forEach { model ->
+                    if (model == selectedModel) Button(onClick = { onModelChange(model) }) { Text(model.label) }
+                    else OutlinedButton(onClick = { onModelChange(model) }) { Text(model.label) }
+                }
+            }
+            Text("Resolution", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                selectedModel.resolutions.forEach { option ->
+                    if (option == resolution) Button(onClick = { onResolutionChange(option) }) { Text(option) }
+                    else OutlinedButton(onClick = { onResolutionChange(option) }) { Text(option) }
+                }
+            }
+            Text("Duration", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(1, 3, 5, 10).forEach { option ->
+                    if (option == duration) Button(onClick = { onDurationChange(option) }) { Text("${option}s") }
+                    else OutlinedButton(onClick = { onDurationChange(option) }) { Text("${option}s") }
+                }
+            }
+            Text("Estimated xAI cost: ${formatUsd(estimate)}", style = MaterialTheme.typography.titleMedium)
+            Text("Estimate only; xAI’s returned cost is authoritative.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -330,8 +404,37 @@ private fun ActivityScreen(padding: PaddingValues, activity: List<ActivityItem>,
     }
 }
 
-private suspend fun create(apiKey: String, mode: CreationMode, prompt: String, imageDataUri: String?): GenerationResult =
-    if (mode.isVideo) generateVideo(apiKey, mode, prompt, imageDataUri) else generateImage(apiKey, mode, prompt, imageDataUri)
+@Composable
+private fun SettingsScreen(
+    padding: PaddingValues,
+    apiKey: String,
+    onApiKeyChange: (String) -> Unit,
+    rememberKey: Boolean,
+    onRememberKeyChange: (Boolean) -> Unit,
+    onForget: () -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(padding),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        item { Text("Settings", style = MaterialTheme.typography.headlineMedium) }
+        item { Text("Your key never leaves the device except in the Authorization header sent directly to xAI.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { OutlinedTextField(value = apiKey, onValueChange = onApiKeyChange, label = { Text("xAI API key") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth()) }
+        item { Row { Checkbox(checked = rememberKey, onCheckedChange = onRememberKeyChange); Text("Remember encrypted key on this device", modifier = Modifier.padding(top = 12.dp)) } }
+        if (apiKey.isNotBlank()) item { OutlinedButton(onClick = onForget, modifier = Modifier.fillMaxWidth()) { Text("Forget saved key") } }
+    }
+}
+
+private suspend fun create(
+    apiKey: String,
+    mode: CreationMode,
+    prompt: String,
+    imageDataUri: String?,
+    videoModel: VideoModel,
+    resolution: String,
+    duration: Int,
+): GenerationResult = if (mode.isVideo) generateVideo(apiKey, mode, prompt, imageDataUri, videoModel, resolution, duration) else generateImage(apiKey, mode, prompt, imageDataUri)
 
 private suspend fun generateImage(apiKey: String, mode: CreationMode, prompt: String, imageDataUri: String?): ImageResult = withContext(Dispatchers.IO) {
     val body = JSONObject().apply {
@@ -345,12 +448,20 @@ private suspend fun generateImage(apiKey: String, mode: CreationMode, prompt: St
     ImageResult(Base64.decode(json.getJSONArray("data").getJSONObject(0).getString("b64_json"), Base64.DEFAULT), json.cost())
 }
 
-private suspend fun generateVideo(apiKey: String, mode: CreationMode, prompt: String, imageDataUri: String?): VideoResult = withContext(Dispatchers.IO) {
+private suspend fun generateVideo(
+    apiKey: String,
+    mode: CreationMode,
+    prompt: String,
+    imageDataUri: String?,
+    videoModel: VideoModel,
+    resolution: String,
+    duration: Int,
+): VideoResult = withContext(Dispatchers.IO) {
     val body = JSONObject().apply {
-        put("model", VIDEO_MODEL)
+        put("model", videoModel.id)
         put("prompt", prompt)
-        put("duration", 5)
-        put("resolution", "480p")
+        put("duration", duration)
+        put("resolution", resolution)
         if (mode.needsImage) put("image", JSONObject().put("url", imageDataUri))
     }
     val requestId = requestJson("/videos/generations", "POST", apiKey, body).getString("request_id")
@@ -384,6 +495,7 @@ private fun requestJson(path: String, method: String, apiKey: String, body: JSON
 
 private fun JSONObject.cost(): Long? = optJSONObject("usage")?.let { if (it.has("cost_in_usd_ticks")) it.getLong("cost_in_usd_ticks") else null }
 private fun formatCost(costInUsdTicks: Long?): String = costInUsdTicks?.let { "$%.4f".format(it / TICKS_PER_USD) } ?: "Not returned"
+private fun formatUsd(cost: Double): String = "$%.2f".format(cost)
 
 private fun readSourceImage(context: Context, uri: Uri): SourceImage? = runCatching {
     val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("No image data")
